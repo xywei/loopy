@@ -121,6 +121,7 @@ from loopy.target.execution import ExecutorBase
 from loopy.target.ispc import ISPCTarget
 from loopy.target.opencl import OpenCLTarget
 from loopy.target.pyopencl import PyOpenCLTarget
+from loopy.target.wgsl import WGSLTarget
 from loopy.tools import Optional, clear_in_mem_caches, memoize_on_disk, t_unit_to_python
 from loopy.transform.add_barrier import add_barrier
 from loopy.transform.arithmetic import (
@@ -278,6 +279,7 @@ __all__ = [
     "OrderedAtomic",
     "PreambleInfo",
     "PyOpenCLTarget",
+    "WGSLTarget",
     "Reduction",
     "ScalarCallable",
     "SubstitutionRule",

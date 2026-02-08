@@ -1,0 +1,1498 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>loopy WebGPU compute lab (WGSL)</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg0: #070911;
+        --bg1: #0b1020;
+        --fg: #e8edf5;
+        --muted: #9aa7bf;
+        --card: rgba(17, 23, 38, 0.92);
+        --border: rgba(90, 120, 180, 0.28);
+        --accent: #7cf7c5;
+        --accent2: #4aa3ff;
+        --bad: #ff6b6b;
+        --warn: #ffd166;
+        --mono: "JetBrains Mono", "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        --sans: "Space Grotesk", "Avenir Next", "Noto Sans", ui-sans-serif, sans-serif;
+        --radius: 14px;
+      }
+      body {
+        margin: 0;
+        font-family: var(--sans);
+        background:
+          radial-gradient(1200px 500px at 18% -10%, rgba(74, 163, 255, 0.28) 0%, transparent 60%),
+          radial-gradient(1100px 520px at 92% 0%, rgba(124, 247, 197, 0.22) 0%, transparent 55%),
+          linear-gradient(180deg, var(--bg1), var(--bg0));
+        color: var(--fg);
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background:
+          repeating-linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.05) 0px,
+            rgba(255, 255, 255, 0.05) 1px,
+            transparent 1px,
+            transparent 28px
+          ),
+          repeating-linear-gradient(
+            0deg,
+            rgba(255, 255, 255, 0.05) 0px,
+            rgba(255, 255, 255, 0.05) 1px,
+            transparent 1px,
+            transparent 28px
+          );
+        opacity: 0.08;
+        mix-blend-mode: overlay;
+      }
+      header {
+        padding: 24px 18px 14px;
+        max-width: 1120px;
+        margin: 0 auto;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 20px;
+        letter-spacing: 0.2px;
+      }
+      p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.35;
+      }
+      main {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 12px 18px 30px;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+      @media (min-width: 980px) {
+        main {
+          grid-template-columns: 390px 1fr;
+          align-items: start;
+        }
+      }
+      .card {
+        border: 1px solid var(--border);
+        background: var(--card);
+        border-radius: var(--radius);
+        padding: 14px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(8px);
+        animation: rise 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+      }
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+      button {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: linear-gradient(180deg, rgba(24, 36, 58, 0.95), rgba(16, 24, 38, 0.95));
+        color: var(--fg);
+        padding: 10px 12px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button:hover {
+        border-color: color-mix(in srgb, var(--border) 60%, var(--accent));
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      input[type="number"] {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: rgba(7, 10, 15, 0.55);
+        color: var(--fg);
+        padding: 9px 10px;
+        font: 600 13px/1.2 var(--mono);
+      }
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: rgba(7, 10, 15, 0.55);
+        color: var(--fg);
+        padding: 9px 10px;
+        font: 600 13px/1.2 var(--mono);
+      }
+      label {
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      code, pre {
+        font-family: var(--mono);
+      }
+      pre {
+        margin: 0;
+        padding: 10px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(7, 10, 15, 0.55);
+        overflow: auto;
+      }
+      .ok {
+        color: var(--accent);
+        font-weight: 700;
+      }
+      .bad {
+        color: var(--bad);
+        font-weight: 700;
+      }
+      .warn {
+        color: var(--warn);
+        font-weight: 700;
+      }
+      .span2 {
+        grid-column: 1 / -1;
+      }
+      .title2 {
+        margin: 0 0 10px;
+        font-size: 14px;
+        letter-spacing: 0.1px;
+        color: color-mix(in srgb, var(--fg) 92%, var(--muted));
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .grid3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px;
+      }
+      .kv {
+        display: grid;
+        grid-template-columns: 160px 1fr;
+        gap: 10px;
+        align-items: baseline;
+      }
+      .kv .k {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .kv .v {
+        font: 600 13px/1.35 var(--mono);
+        color: var(--fg);
+        overflow-wrap: anywhere;
+      }
+      .bars {
+        display: grid;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .barRow {
+        display: grid;
+        grid-template-columns: 120px 1fr 90px;
+        gap: 10px;
+        align-items: center;
+      }
+      .barLabel {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .bar {
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(90, 120, 180, 0.22);
+        overflow: hidden;
+        border: 1px solid rgba(90, 120, 180, 0.22);
+      }
+      .barFill {
+        height: 100%;
+        width: var(--pct, 0%);
+        background: linear-gradient(90deg, rgba(124, 247, 197, 0.9), rgba(74, 163, 255, 0.9));
+      }
+      .barVal {
+        text-align: right;
+        font: 600 12px/1.2 var(--mono);
+        color: var(--fg);
+      }
+      details > summary {
+        cursor: pointer;
+        color: color-mix(in srgb, var(--fg) 88%, var(--muted));
+        font-weight: 700;
+      }
+      canvas {
+        width: 100%;
+        height: 160px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: rgba(7, 10, 15, 0.55);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>loopy WebGPU compute lab (WGSL)</h1>
+      <p>
+        Loads <code>artifacts.json</code> (generated by <code>generate_artifacts.py</code>), runs a WebGPU
+        compute pipeline, and benchmarks GPU dispatch vs a JS CPU loop.
+      </p>
+    </header>
+
+    <main>
+      <section class="card">
+        <h2 class="title2">Run Controls</h2>
+        <div class="grid2">
+          <div style="grid-column: 1 / -1">
+            <label for="demoSelect">Demo</label>
+            <select id="demoSelect"></select>
+          </div>
+          <div style="grid-column: 1 / -1">
+            <label for="adapterPrefSelect">Adapter request</label>
+            <select id="adapterPrefSelect">
+              <option value="high-performance">high-performance</option>
+              <option value="low-power">low-power</option>
+              <option value="fallback">force fallback (software)</option>
+            </select>
+          </div>
+          <div>
+            <label id="nLabel" for="nInput">n</label>
+            <input id="nInput" type="number" min="0" step="1" value="1048576" />
+          </div>
+          <div>
+            <label for="itersInput">GPU iterations</label>
+            <input id="itersInput" type="number" min="1" step="1" value="200" />
+          </div>
+          <div>
+            <label for="warmupInput">Warmup iterations</label>
+            <input id="warmupInput" type="number" min="0" step="1" value="5" />
+          </div>
+          <div>
+            <label for="trialsInput">Trials</label>
+            <input id="trialsInput" type="number" min="1" step="1" value="5" />
+          </div>
+        </div>
+
+        <div class="row" style="margin-top: 10px">
+          <label><input id="verifyCb" type="checkbox" /> Read back + verify output</label>
+        </div>
+
+        <div class="row" style="margin-top: 12px">
+          <button id="runBtn">Run Benchmark</button>
+          <span id="status" aria-live="polite"></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="title2">Performance</h2>
+          <div class="kv">
+            <div class="k">Kernel</div>
+            <div class="v" id="kernelNameV">Loading artifacts...</div>
+          </div>
+        <div class="kv">
+          <div class="k">Adapter</div>
+          <div class="v" id="adapterV">-</div>
+        </div>
+        <div class="kv">
+          <div class="k">Backend hint</div>
+          <div class="v" id="backendHintV">-</div>
+        </div>
+        <div class="kv">
+          <div class="k">Total work</div>
+          <div class="v" id="workV">-</div>
+        </div>
+        <div class="kv">
+          <div class="k">Upload (CPU)</div>
+          <div class="v" id="uploadV">-</div>
+        </div>
+        <div class="kv">
+          <div class="k">GPU dispatch (median)</div>
+          <div class="v" id="gpuMedianV">-</div>
+        </div>
+        <div class="kv">
+          <div class="k">CPU loop (median, single-thread JS)</div>
+          <div class="v" id="cpuMedianV">-</div>
+        </div>
+        <div class="kv">
+          <div class="k">Speedup (CPU/GPU)</div>
+          <div class="v" id="speedupV">-</div>
+        </div>
+        <div class="kv">
+          <div class="k">Throughput (GPU)</div>
+          <div class="v" id="gpuThroughputV">-</div>
+        </div>
+        <div class="kv">
+          <div class="k">Throughput (CPU)</div>
+          <div class="v" id="cpuThroughputV">-</div>
+        </div>
+
+        <div class="bars" id="bars"></div>
+      </section>
+
+      <section class="card span2">
+        <h2 class="title2">Dispatch + Bindings</h2>
+        <div class="grid3">
+          <div>
+            <div class="kv">
+              <div class="k">Entry points</div>
+              <div class="v" id="entrypointsV">-</div>
+            </div>
+            <div class="kv">
+              <div class="k">Workgroup size</div>
+              <div class="v" id="workgroupV">-</div>
+            </div>
+            <div class="kv">
+              <div class="k">Workgroups</div>
+              <div class="v" id="workgroupsV">-</div>
+            </div>
+            <div class="kv">
+              <div class="k">Invocations</div>
+              <div class="v" id="invocationsV">-</div>
+            </div>
+            <div class="kv">
+              <div class="k">Utilization</div>
+              <div class="v" id="utilizationV">-</div>
+            </div>
+          </div>
+          <div>
+            <details open>
+              <summary>Bindings</summary>
+              <pre id="bindingsPre" style="margin-top: 10px">-</pre>
+            </details>
+          </div>
+          <div>
+            <details>
+              <summary>Dispatch expressions</summary>
+              <pre id="dispatchExprPre" style="margin-top: 10px">-</pre>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section class="card span2">
+        <h2 class="title2">Output</h2>
+        <p style="margin: 0 0 10px; color: var(--muted); font-size: 13px">
+          Readback is optional. If it is disabled, the benchmark focuses on dispatch throughput rather than PCIe/readback.
+        </p>
+        <canvas id="plot" width="900" height="220"></canvas>
+        <div class="row" style="margin-top: 10px; justify-content: space-between">
+          <div class="kv" style="grid-template-columns: 160px 1fr; width: 100%">
+            <div class="k">Verification</div>
+            <div class="v" id="verifyV">-</div>
+          </div>
+        </div>
+        <details style="margin-top: 10px">
+          <summary>Result preview</summary>
+          <pre id="outPre" style="margin-top: 10px">Run with verification enabled to read back results.</pre>
+        </details>
+      </section>
+
+      <section class="card span2">
+        <details>
+          <summary>WGSL source (generated)</summary>
+          <pre id="wgslPre" style="margin-top: 10px">Loading artifacts...</pre>
+        </details>
+      </section>
+
+      <section class="card span2">
+        <details>
+          <summary>Environment</summary>
+          <pre id="envPre" style="margin-top: 10px">-</pre>
+        </details>
+      </section>
+    </main>
+
+    <script type="module">
+      import {
+        compileLoopyWebGPU,
+        createLoopyBindGroup,
+        dispatchLoopyWebGPU,
+        evaluateDispatches,
+        initWebGPU,
+        readbackLoopyBuffers,
+      } from "./loopy-webgpu-runner.js";
+
+      const runBtn = document.getElementById("runBtn");
+      const statusEl = document.getElementById("status");
+      const envPre = document.getElementById("envPre");
+      const outPre = document.getElementById("outPre");
+      const plot = document.getElementById("plot");
+
+      const demoSelect = document.getElementById("demoSelect");
+      const adapterPrefSelect = document.getElementById("adapterPrefSelect");
+      const nLabel = document.getElementById("nLabel");
+
+      const nInput = document.getElementById("nInput");
+      const itersInput = document.getElementById("itersInput");
+      const warmupInput = document.getElementById("warmupInput");
+      const trialsInput = document.getElementById("trialsInput");
+      const verifyCb = document.getElementById("verifyCb");
+
+      const kernelNameV = document.getElementById("kernelNameV");
+      const adapterV = document.getElementById("adapterV");
+      const backendHintV = document.getElementById("backendHintV");
+      const workV = document.getElementById("workV");
+      const uploadV = document.getElementById("uploadV");
+      const gpuMedianV = document.getElementById("gpuMedianV");
+      const cpuMedianV = document.getElementById("cpuMedianV");
+      const speedupV = document.getElementById("speedupV");
+      const gpuThroughputV = document.getElementById("gpuThroughputV");
+      const cpuThroughputV = document.getElementById("cpuThroughputV");
+      const barsEl = document.getElementById("bars");
+
+      const entrypointsV = document.getElementById("entrypointsV");
+      const workgroupV = document.getElementById("workgroupV");
+      const workgroupsV = document.getElementById("workgroupsV");
+      const invocationsV = document.getElementById("invocationsV");
+      const utilizationV = document.getElementById("utilizationV");
+      const bindingsPre = document.getElementById("bindingsPre");
+      const dispatchExprPre = document.getElementById("dispatchExprPre");
+
+      const verifyV = document.getElementById("verifyV");
+      const wgslPre = document.getElementById("wgslPre");
+
+      function setStatus(kind, msg) {
+        statusEl.className = kind;
+        statusEl.textContent = msg;
+      }
+
+      function clampInt(x, min, max, what) {
+        const xi = Math.floor(Number(x));
+        if (!Number.isFinite(xi) || xi < min || xi > max) {
+          throw new Error(`${what} must be an integer in [${min}, ${max}], got ${x}`);
+        }
+        return xi;
+      }
+
+      function fmtMs(ms) {
+        if (!Number.isFinite(ms)) return "-";
+        if (ms >= 1000) return `${(ms / 1000).toFixed(3)} s`;
+        if (ms >= 10) return `${ms.toFixed(2)} ms`;
+        return `${ms.toFixed(3)} ms`;
+      }
+
+      function fmtPct(x) {
+        if (!Number.isFinite(x)) return "-";
+        return `${(x * 100).toFixed(2)}%`;
+      }
+
+      function median(arr) {
+        const xs = arr.slice().sort((a, b) => a - b);
+        const mid = Math.floor(xs.length / 2);
+        return xs.length % 2 ? xs[mid] : 0.5 * (xs[mid - 1] + xs[mid]);
+      }
+
+      function mean(arr) {
+        let acc = 0;
+        for (const x of arr) acc += x;
+        return acc / Math.max(1, arr.length);
+      }
+
+      function stddev(arr) {
+        if (arr.length <= 1) return 0;
+        const m = mean(arr);
+        let acc = 0;
+        for (const x of arr) acc += (x - m) * (x - m);
+        return Math.sqrt(acc / (arr.length - 1));
+      }
+
+      function fmtRateElementsPerSec(elements, ms) {
+        if (!Number.isFinite(ms) || ms <= 0) return "-";
+        const perSec = elements * 1000 / ms;
+        if (perSec >= 1e9) return `${(perSec / 1e9).toFixed(3)} Gelem/s`;
+        if (perSec >= 1e6) return `${(perSec / 1e6).toFixed(3)} Melem/s`;
+        return `${perSec.toFixed(0)} elem/s`;
+      }
+
+      function fmtRateGBps(bytes, ms) {
+        if (!Number.isFinite(ms) || ms <= 0) return "-";
+        // bytes/ms == MB/s. Divide by 1000 for GB/s (SI).
+        const gbps = (bytes / ms) / 1e6;
+        return `${gbps.toFixed(3)} GB/s`;
+      }
+
+      function fmtRateGFLOPs(flops, ms) {
+        if (!Number.isFinite(ms) || ms <= 0) return "-";
+        if (!Number.isFinite(flops) || flops <= 0) return "-";
+        // flops/ms == MFLOP/s. Divide by 1000 for GFLOP/s.
+        const gflops = flops / ms / 1e6;
+        return `${gflops.toFixed(3)} GFLOP/s`;
+      }
+
+      function exprToString(expr) {
+        if (typeof expr === "number") return String(expr);
+        if (expr && typeof expr === "object" && typeof expr.var === "string") return expr.var;
+        if (!expr || typeof expr !== "object" || typeof expr.op !== "string") return String(expr);
+        if (expr.op === "add") return (expr.args || []).map(exprToString).join(" + ");
+        if (expr.op === "mul") return (expr.args || []).map(exprToString).join(" * ");
+        if (expr.op === "min") return `min(${(expr.args || []).map(exprToString).join(", ")})`;
+        if (expr.op === "max") return `max(${(expr.args || []).map(exprToString).join(", ")})`;
+        if (expr.op === "floordiv") return `floor(${exprToString(expr.a)} / ${exprToString(expr.b)})`;
+        if (expr.op === "div") return `(${exprToString(expr.a)} / ${exprToString(expr.b)})`;
+        if (expr.op === "mod") return `(${exprToString(expr.a)} % ${exprToString(expr.b)})`;
+        return `${expr.op}(...)`;
+      }
+
+      function renderBars(items) {
+        const maxMs = Math.max(1, ...items.map((x) => x.ms).filter((x) => Number.isFinite(x)));
+        barsEl.innerHTML = "";
+        for (const it of items) {
+          const row = document.createElement("div");
+          row.className = "barRow";
+
+          const label = document.createElement("div");
+          label.className = "barLabel";
+          label.textContent = it.label;
+
+          const bar = document.createElement("div");
+          bar.className = "bar";
+          const fill = document.createElement("div");
+          fill.className = "barFill";
+          const pct = Number.isFinite(it.ms) ? Math.max(0, Math.min(100, (it.ms / maxMs) * 100)) : 0;
+          fill.style.setProperty("--pct", `${pct.toFixed(2)}%`);
+          bar.appendChild(fill);
+
+          const val = document.createElement("div");
+          val.className = "barVal";
+          val.textContent = fmtMs(it.ms);
+
+          row.appendChild(label);
+          row.appendChild(bar);
+          row.appendChild(val);
+          barsEl.appendChild(row);
+        }
+      }
+
+      function drawPlot(values) {
+        const ctx = plot.getContext("2d");
+        const w = plot.width;
+        const h = plot.height;
+        ctx.clearRect(0, 0, w, h);
+        const monoFamily = "JetBrains Mono, SF Mono, Menlo, Monaco, Consolas, Liberation Mono, monospace";
+
+        ctx.fillStyle = "rgba(7, 10, 15, 0.55)";
+        ctx.fillRect(0, 0, w, h);
+
+        // Grid
+        ctx.strokeStyle = "rgba(255,255,255,0.08)";
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= w; x += 60) {
+          ctx.beginPath();
+          ctx.moveTo(x + 0.5, 0);
+          ctx.lineTo(x + 0.5, h);
+          ctx.stroke();
+        }
+        for (let y = 0; y <= h; y += 40) {
+          ctx.beginPath();
+          ctx.moveTo(0, y + 0.5);
+          ctx.lineTo(w, y + 0.5);
+          ctx.stroke();
+        }
+
+        if (!values || values.length < 2) {
+          ctx.fillStyle = "rgba(154, 167, 191, 0.9)";
+          ctx.font = `600 14px ${monoFamily}`;
+          ctx.fillText("No readback yet.", 14, 26);
+          return;
+        }
+
+        const n = values.length;
+        let vmin = values[0];
+        let vmax = values[0];
+        for (const v of values) {
+          vmin = Math.min(vmin, v);
+          vmax = Math.max(vmax, v);
+        }
+        const pad = 18;
+        const sx = (w - 2 * pad) / Math.max(1, n - 1);
+        const sy = (h - 2 * pad) / Math.max(1e-12, vmax - vmin);
+
+        ctx.strokeStyle = "rgba(124, 247, 197, 0.95)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < n; ++i) {
+          const x = pad + i * sx;
+          const y = h - pad - (values[i] - vmin) * sy;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        ctx.fillStyle = "rgba(154, 167, 191, 0.95)";
+        ctx.font = `600 12px ${monoFamily}`;
+        ctx.fillText(`out[0..${n - 1}] (min=${vmin.toFixed(3)}, max=${vmax.toFixed(3)})`, 14, 26);
+      }
+
+      function cpuVectorScale(a, out, iterations) {
+        const n = a.length;
+        const t0 = performance.now();
+        for (let it = 0; it < iterations; ++it) {
+          for (let i = 0; i < n; ++i) out[i] = 2.0 * a[i];
+        }
+        const t1 = performance.now();
+        return { ms: t1 - t0 };
+      }
+
+      function cpuFmaStorm(a, out, iterations, innerSteps) {
+        const n = a.length;
+        const steps = Math.max(1, innerSteps | 0);
+        const t0 = performance.now();
+        for (let it = 0; it < iterations; ++it) {
+          for (let i = 0; i < n; ++i) {
+            const x = a[i];
+            let acc = 0.0;
+            for (let k = 0; k < steps; ++k) {
+              const k1 = k;
+              const k2 = 2 * k;
+              const k3 = 3 * k;
+              acc += (x + k1) * (x - k1) + (x + k2) * (x - k2) + (x + k3) * (x - k3);
+            }
+            out[i] = acc;
+          }
+        }
+        const t1 = performance.now();
+        return { ms: t1 - t0 };
+      }
+
+      function cpuTrigStorm(a, out, iterations, innerSteps) {
+        const n = a.length;
+        const steps = Math.max(1, innerSteps | 0);
+        const t0 = performance.now();
+        for (let it = 0; it < iterations; ++it) {
+          for (let i = 0; i < n; ++i) {
+            const x = a[i];
+            const ax = Math.abs(x);
+            let acc = 0.0;
+            for (let k = 0; k < steps; ++k) {
+              acc +=
+                Math.sin(x + k) * Math.cos(x - 2 * k) +
+                Math.log(ax + 1 + k) +
+                Math.exp(-ax - k);
+            }
+            out[i] = acc;
+          }
+        }
+        const t1 = performance.now();
+        return { ms: t1 - t0 };
+      }
+
+      function cpuMatMul(a, b, out, n, iterations) {
+        const nn = n * n;
+        if (a.length !== nn || b.length !== nn || out.length !== nn) {
+          throw new Error(`matmul buffers must have length n*n (${nn}), got a=${a.length}, b=${b.length}, out=${out.length}`);
+        }
+
+        // Transpose once per run to avoid a catastrophic strided access pattern on CPU.
+        const tT0 = performance.now();
+        const bT = new Float32Array(nn);
+        for (let i = 0; i < n; ++i) {
+          const ioff = i * n;
+          for (let j = 0; j < n; ++j) {
+            bT[j * n + i] = b[ioff + j];
+          }
+        }
+        const tT1 = performance.now();
+
+        const t0 = performance.now();
+        for (let it = 0; it < iterations; ++it) {
+          for (let i = 0; i < n; ++i) {
+            const ioff = i * n;
+            for (let j = 0; j < n; ++j) {
+              const joff = j * n;
+              let acc = 0.0;
+              for (let k = 0; k < n; ++k) {
+                acc += a[ioff + k] * bT[joff + k];
+              }
+              out[ioff + j] = acc;
+            }
+          }
+        }
+        const t1 = performance.now();
+
+        return { ms: t1 - t0, transposeMs: tT1 - tT0 };
+      }
+
+      function renderEnv(info) {
+        const limits = info && info.device ? info.device.limits : null;
+        const pickedLimits = limits
+          ? {
+              maxComputeInvocationsPerWorkgroup: limits.maxComputeInvocationsPerWorkgroup,
+              maxComputeWorkgroupSizeX: limits.maxComputeWorkgroupSizeX,
+              maxComputeWorkgroupSizeY: limits.maxComputeWorkgroupSizeY,
+              maxComputeWorkgroupSizeZ: limits.maxComputeWorkgroupSizeZ,
+              maxComputeWorkgroupsPerDimension: limits.maxComputeWorkgroupsPerDimension,
+              maxStorageBufferBindingSize: limits.maxStorageBufferBindingSize,
+            }
+          : null;
+
+        let deviceFeatures = null;
+        try {
+          deviceFeatures = info && info.device ? Array.from(info.device.features) : null;
+        } catch {
+          deviceFeatures = null;
+        }
+
+        const env = {
+          href: String(location.href),
+          secureContext: typeof isSecureContext === "boolean" ? isSecureContext : null,
+          userAgent: navigator.userAgent,
+          hasNavigatorGpu: ("gpu" in navigator),
+          hardwareConcurrency: navigator.hardwareConcurrency,
+          adapterInfo: info && info.adapterInfo ? info.adapterInfo : null,
+          deviceLimits: pickedLimits,
+          deviceFeatures,
+        };
+        envPre.textContent = JSON.stringify(env, null, 2);
+      }
+
+      function renderBindings(artifact) {
+        const lines = [];
+        if (artifact.params) {
+          lines.push(`@group(0) @binding(${artifact.params.binding}) uniform params (${artifact.params.size} bytes)`);
+          for (const f of artifact.params.fields || []) {
+            lines.push(`  - ${f.name}: ${f.wgsl_type} @ offset ${f.offset}`);
+          }
+        } else {
+          lines.push("(no uniform params)");
+        }
+
+        lines.push("");
+        lines.push("storage buffers:");
+        for (const b of artifact.storage_bindings || []) {
+          lines.push(`  - ${b.name}: @binding(${b.binding}) ${b.element_type}[...] (${b.webgpu_buffer_binding_type})`);
+        }
+
+        bindingsPre.textContent = lines.join("\n");
+      }
+
+      function renderDispatchExpressions(artifact) {
+        const lines = [];
+        for (const d of artifact.dispatches || []) {
+          const [wx, wy, wz] = d.workgroup_size;
+          const [x, y, z] = d.workgroups;
+          lines.push(`${d.entrypoint}:`);
+          lines.push(`  workgroup_size = (${wx}, ${wy}, ${wz})`);
+          lines.push(`  workgroups = (${exprToString(x)}, ${exprToString(y)}, ${exprToString(z)})`);
+          lines.push("");
+        }
+        dispatchExprPre.textContent = lines.join("\n").trim() || "-";
+      }
+
+      function renderKernelName(artifact, { setDefaults = false } = {}) {
+        const m = artifact.meta || {};
+        const title = typeof m.title === "string" ? m.title : "loopy kernel";
+        const expr = typeof m.expr === "string" ? ` (${m.expr})` : "";
+        kernelNameV.textContent = title + expr;
+
+        const nLabelText = typeof m.n_label === "string" && m.n_label.trim() ? m.n_label.trim() : "n";
+        nLabel.textContent = nLabelText;
+
+        if (setDefaults) {
+          const suggestedN = Number.isInteger(m.suggested_n) ? m.suggested_n : null;
+          const suggestedIters = Number.isInteger(m.suggested_iterations) ? m.suggested_iterations : null;
+          const suggestedWarmup = Number.isInteger(m.suggested_warmup) ? m.suggested_warmup : null;
+          const suggestedTrials = Number.isInteger(m.suggested_trials) ? m.suggested_trials : null;
+          if (suggestedN !== null) nInput.value = String(suggestedN);
+          if (suggestedIters !== null) itersInput.value = String(suggestedIters);
+          if (suggestedWarmup !== null) warmupInput.value = String(suggestedWarmup);
+          if (suggestedTrials !== null) trialsInput.value = String(suggestedTrials);
+        }
+      }
+
+      function renderWGSL(artifact) {
+        wgslPre.textContent = artifact.wgsl_source || "(missing wgsl_source)";
+      }
+
+      function renderDispatchSummary(artifact, params) {
+        const evaluated = evaluateDispatches(artifact, params);
+        entrypointsV.textContent = evaluated.map((d) => d.entrypoint).join(", ") || "-";
+
+        if (!evaluated.length) {
+          workgroupV.textContent = "-";
+          workgroupsV.textContent = "-";
+          invocationsV.textContent = "-";
+          utilizationV.textContent = "-";
+          return { evaluated, invocationsTotal: 0 };
+        }
+
+        // Show the first dispatch inline; multi-dispatch (global barriers) is still supported.
+        const first = evaluated[0];
+        workgroupV.textContent = `(${first.workgroup_size.join(", ")})`;
+        workgroupsV.textContent = `(${first.workgroups.join(", ")})`;
+
+        let invocationsTotal = 0;
+        for (const d of evaluated) {
+          const inv = d.workgroups[0] * d.workgroups[1] * d.workgroups[2]
+            * d.workgroup_size[0] * d.workgroup_size[1] * d.workgroup_size[2];
+          invocationsTotal += inv;
+        }
+        invocationsV.textContent = `${invocationsTotal.toLocaleString()} threads/iter`;
+
+        // Best-effort: only meaningful for a 1D dispatch.
+        let util = null;
+        if (
+          evaluated.length === 1
+          && first.workgroups[1] === 1
+          && first.workgroups[2] === 1
+          && first.workgroup_size[1] === 1
+          && first.workgroup_size[2] === 1
+        ) {
+          const threads = first.workgroups[0] * first.workgroup_size[0];
+          util = threads > 0 ? Math.min(1, params.n / threads) : null;
+        }
+        utilizationV.textContent = util === null ? "-" : fmtPct(util);
+        return { evaluated, invocationsTotal };
+      }
+
+      async function getAdapterInfo(adapter) {
+        if (adapter && typeof adapter.requestAdapterInfo === "function") {
+          try {
+            return await adapter.requestAdapterInfo();
+          } catch {
+            return null;
+          }
+        }
+        return null;
+      }
+
+      function renderAdapterLine(info) {
+        if (!info || !info.adapter) {
+          adapterV.textContent = "-";
+          backendHintV.textContent = "-";
+          return;
+        }
+
+        const adapter = info.adapter;
+        const isFallback = Boolean(adapter && adapter.isFallbackAdapter);
+        const ai = info.adapterInfo || null;
+
+        const desc = ai && typeof ai.description === "string" && ai.description.trim()
+          ? ai.description.trim()
+          : "(adapterInfo unavailable)";
+
+        adapterV.textContent = `${isFallback ? "fallback (software)" : "hardware"} | ${desc}`;
+
+        // Provide a low-entropy hint that helps distinguish Vulkan-ish adapters
+        // (often faster) from compatibility/OpenGLES ones, without relying on
+        // adapterInfo being exposed.
+        let hasTimestampQuery = null;
+        let hasSubgroups = null;
+        try {
+          hasTimestampQuery = adapter.features && adapter.features.has("timestamp-query");
+          hasSubgroups = adapter.features && adapter.features.has("subgroups");
+        } catch {
+          hasTimestampQuery = null;
+          hasSubgroups = null;
+        }
+
+        if (isFallback) {
+          backendHintV.textContent = "software fallback adapter (expect slow compute)";
+          return;
+        }
+
+        if (hasTimestampQuery === true) {
+          backendHintV.textContent = "timestamp-query supported (likely Vulkan/Metal/D3D12 backend)";
+        } else if (hasTimestampQuery === false) {
+          backendHintV.textContent = "timestamp-query not supported (often OpenGLES/compatibility backend)";
+        } else {
+          backendHintV.textContent = "unknown";
+        }
+
+        if (hasSubgroups === true) {
+          backendHintV.textContent += " | subgroups supported";
+        }
+      }
+
+      function safeLocalStorageGet(key) {
+        try {
+          return localStorage.getItem(key);
+        } catch {
+          return null;
+        }
+      }
+
+      function safeLocalStorageSet(key, value) {
+        try {
+          localStorage.setItem(key, value);
+        } catch {
+          // Ignore.
+        }
+      }
+
+      function demoIdFromArtifact(artifact, idx) {
+        const m = artifact && typeof artifact === "object" ? (artifact.meta || {}) : {};
+        const id = typeof m.id === "string" && m.id.trim() ? m.id.trim() : `demo_${idx}`;
+        return id;
+      }
+
+      function demoTitleFromArtifact(artifact, id) {
+        const m = artifact && typeof artifact === "object" ? (artifact.meta || {}) : {};
+        const title = typeof m.title === "string" && m.title.trim() ? m.title.trim() : id;
+        const expr = typeof m.expr === "string" && m.expr.trim() ? ` (${m.expr.trim()})` : "";
+        return title + expr;
+      }
+
+      async function fetchJson(path) {
+        const resp = await fetch(path, { cache: "no-store" });
+        if (!resp.ok) return null;
+        return await resp.json();
+      }
+
+      function getWebGPUInitOptionsFromUI() {
+        const pref = String(adapterPrefSelect.value || "high-performance");
+        if (pref === "fallback") {
+          return { powerPreference: "high-performance", forceFallbackAdapter: true, tryFallback: false };
+        }
+        if (pref === "low-power") {
+          return { powerPreference: "low-power", forceFallbackAdapter: false, tryFallback: true };
+        }
+        return { powerPreference: "high-performance", forceFallbackAdapter: false, tryFallback: true };
+      }
+
+      async function initWebGPUFromUI() {
+        setStatus("", "Initializing WebGPU ...");
+        runBtn.disabled = true;
+        try {
+          const opts = getWebGPUInitOptionsFromUI();
+          const { adapter, device } = await initWebGPU(opts);
+          const adapterInfo = await getAdapterInfo(adapter);
+
+          webgpu = { adapter, device, adapterInfo };
+          compiledByDemoId.clear(); // pipelines are per-device
+
+          renderEnv(webgpu);
+          renderAdapterLine(webgpu);
+
+          if (adapter && adapter.isFallbackAdapter) {
+            setStatus("warn", "Ready (fallback adapter: expect slow compute)");
+          } else {
+            setStatus("ok", "Ready");
+          }
+
+          runBtn.disabled = false;
+        } catch (err) {
+          console.error(err);
+          renderEnv(null);
+          renderAdapterLine(null);
+          setStatus("bad", String(err && err.message ? err.message : err));
+          runBtn.disabled = true;
+        }
+      }
+
+      async function loadDemoItems() {
+        const tries = [
+          { path: "./artifacts.json", kind: "multi" },
+          { path: "./artifact.json", kind: "single" },
+        ];
+
+        let lastErr = null;
+        for (const t of tries) {
+          try {
+            const data = await fetchJson(t.path);
+            if (!data) continue;
+
+            let demos = null;
+            if (data && typeof data === "object" && Array.isArray(data.demos)) {
+              demos = data.demos;
+            } else if (data && typeof data === "object" && typeof data.wgsl_source === "string") {
+              demos = [data];
+            }
+
+            if (!demos) continue;
+
+            const seen = new Map();
+            const items = demos.map((artifact, idx) => {
+              let id = demoIdFromArtifact(artifact, idx);
+              const prev = seen.get(id) || 0;
+              seen.set(id, prev + 1);
+              if (prev) id = `${id}_${idx}`;
+              return { id, artifact };
+            });
+
+            if (!items.length) continue;
+            return { source: t.path, items };
+          } catch (err) {
+            lastErr = err;
+          }
+        }
+
+        throw new Error(
+          `Could not load artifacts.json (multi-demo) or artifact.json (single demo). ${lastErr ? String(lastErr) : ""}`.trim(),
+        );
+      }
+
+      function populateDemoSelect(items) {
+        demoSelect.innerHTML = "";
+        for (const it of items) {
+          const opt = document.createElement("option");
+          opt.value = it.id;
+          opt.textContent = demoTitleFromArtifact(it.artifact, it.id);
+          demoSelect.appendChild(opt);
+        }
+      }
+
+      function setFieldsToDash() {
+        workV.textContent = "-";
+        uploadV.textContent = "-";
+        gpuMedianV.textContent = "-";
+        cpuMedianV.textContent = "-";
+        speedupV.textContent = "-";
+        gpuThroughputV.textContent = "-";
+        cpuThroughputV.textContent = "-";
+        barsEl.innerHTML = "";
+        verifyV.textContent = "-";
+      }
+
+      let demoItems = [];
+      let currentDemo = null; // { id, artifact }
+      let artifactsSource = null;
+      let webgpu = null; // { adapter, device, adapterInfo }
+      const compiledByDemoId = new Map();
+
+      async function bootstrap() {
+        setStatus("", "Loading artifacts ...");
+        runBtn.disabled = true;
+        demoSelect.disabled = true;
+        try {
+          const loaded = await loadDemoItems();
+          demoItems = loaded.items;
+          artifactsSource = loaded.source;
+
+          populateDemoSelect(demoItems);
+          demoSelect.disabled = false;
+
+          demoSelect.onchange = () => {
+            selectDemo(demoSelect.value, { setDefaults: true });
+          };
+
+          // Restore adapter preference (best-effort).
+          const savedPref = safeLocalStorageGet("loopy_webgpu_adapter_pref");
+          if (savedPref && typeof savedPref === "string") {
+            adapterPrefSelect.value = savedPref;
+          }
+          adapterPrefSelect.onchange = () => {
+            safeLocalStorageSet("loopy_webgpu_adapter_pref", String(adapterPrefSelect.value || ""));
+            initWebGPUFromUI();
+          };
+
+          await initWebGPUFromUI();
+
+          const savedId = safeLocalStorageGet("loopy_webgpu_demo_id");
+          const initialId = (savedId && demoItems.some((d) => d.id === savedId)) ? savedId : demoItems[0].id;
+          selectDemo(initialId, { setDefaults: true });
+
+          // Prime the plot with "no readback".
+          drawPlot(null);
+        } catch (err) {
+          console.error(err);
+          renderEnv(null);
+          drawPlot(null);
+          setStatus("bad", String(err && err.message ? err.message : err));
+          runBtn.disabled = true;
+        }
+      }
+
+      function selectDemo(id, { setDefaults = false } = {}) {
+        const found = demoItems.find((d) => d.id === id);
+        if (!found) throw new Error(`unknown demo id '${id}'`);
+
+        currentDemo = found;
+        demoSelect.value = found.id;
+        safeLocalStorageSet("loopy_webgpu_demo_id", found.id);
+
+        const artifact = found.artifact;
+        const demoType = (artifact && artifact.meta && typeof artifact.meta.id === "string" && artifact.meta.id.trim())
+          ? artifact.meta.id.trim()
+          : found.id;
+        renderKernelName(artifact, { setDefaults });
+        renderBindings(artifact);
+        renderDispatchExpressions(artifact);
+        renderWGSL(artifact);
+
+        // Dispatch depends on n (a parameter), so recompute it as the user edits.
+        try {
+          const n0 = clampInt(nInput.value, 0, maxNForDemoType(demoType), "n");
+          renderDispatchSummary(artifact, { n: n0 });
+        } catch {
+          // Ignore validation errors; Run will surface them.
+        }
+
+        outPre.textContent = "Run with verification enabled to read back results.";
+        drawPlot(null);
+        setFieldsToDash();
+      }
+
+      bootstrap();
+
+      function currentDemoType() {
+        if (!currentDemo || !currentDemo.artifact) return null;
+        const m = currentDemo.artifact.meta || {};
+        if (typeof m.id === "string" && m.id.trim()) return m.id.trim();
+        return currentDemo.id;
+      }
+
+      function maxNForDemoType(demoType) {
+        // Defensive limits to avoid accidental multi-GB allocations.
+        if (demoType === "matmul" || demoType === "matmul_tiled") return 1024; // 1024^2 * 4 bytes ~= 4 MiB per matrix
+        if (demoType === "fma_storm" || demoType === "fma_storm_xl") return 1 << 20;
+        if (demoType === "trig_storm") return 1 << 18;
+        return 1 << 22;
+      }
+
+      function allocateBuffersForDemo(demoType, artifact, n) {
+        if (demoType === "matmul" || demoType === "matmul_tiled") {
+          const nn = n * n;
+          const a = new Float32Array(nn);
+          const b = new Float32Array(nn);
+          const out = new Float32Array(nn);
+
+          // Deterministic, non-trivial data (avoid all-zeros or huge magnitudes).
+          for (let i = 0; i < nn; ++i) {
+            a[i] = ((i % 251) - 125) / 125.0;
+            b[i] = (((i * 17) % 257) - 128) / 128.0;
+          }
+
+          return { a, b, out };
+        }
+
+        // Default: vector-shaped demo (a/out length n).
+        const a = new Float32Array(n);
+        const out = new Float32Array(n);
+        if (demoType === "trig_storm") {
+          // Keep inputs in a tame range to avoid over/underflow across platforms.
+          for (let i = 0; i < n; ++i) {
+            a[i] = ((i % 2048) / 1024.0) - 1.0; // [-1, 1)
+          }
+        } else {
+          for (let i = 0; i < n; ++i) a[i] = i;
+        }
+        return { a, out };
+      }
+
+      function cpuBaselineForDemo(demoType, artifact, buffers, n, iterations) {
+        if (demoType === "vec_scale") {
+          return cpuVectorScale(buffers.a, buffers.out, iterations);
+        }
+
+        if (demoType === "fma_storm" || demoType === "fma_storm_xl") {
+          const innerSteps = Number.isInteger(artifact?.meta?.inner_steps)
+            ? artifact.meta.inner_steps
+            : 256;
+          return cpuFmaStorm(buffers.a, buffers.out, iterations, innerSteps);
+        }
+
+        if (demoType === "trig_storm") {
+          const innerSteps = Number.isInteger(artifact?.meta?.inner_steps)
+            ? artifact.meta.inner_steps
+            : 64;
+          return cpuTrigStorm(buffers.a, buffers.out, iterations, innerSteps);
+        }
+
+        if (demoType === "matmul" || demoType === "matmul_tiled") {
+          return cpuMatMul(buffers.a, buffers.b, buffers.out, n, iterations);
+        }
+
+        throw new Error(`No CPU baseline implemented for demo '${demoType}'`);
+      }
+
+      function workModelForDemo(demoType, artifact, n, iterations) {
+        if (demoType === "matmul" || demoType === "matmul_tiled") {
+          const nn = n * n;
+          const n3 = nn * n;
+          const outElems = nn * iterations;
+          const flops = 2 * n3 * iterations; // mul+add per k
+          if (demoType === "matmul_tiled") {
+            // Rough global memory model for 16x16 tiling:
+            // Each workgroup loads one 16x16 tile from A and B per k-tile.
+            // That's 256 + 256 = 512 f32 loads per k-tile per workgroup.
+            const tile = 16;
+            const wgX = Math.ceil(n / tile);
+            const wgY = Math.ceil(n / tile);
+            const kTiles = Math.ceil(n / tile);
+            const loads = wgX * wgY * kTiles * 512 * iterations;
+            const stores = nn * iterations;
+            const bytes = 4 * (loads + stores);
+            return { elements: outElems, bytes, flops, elementLabel: "output elements" };
+          }
+
+          const bytes = 4 * (2 * n3 + nn) * iterations; // naive global memory model
+          return { elements: outElems, bytes, flops, elementLabel: "output elements" };
+        }
+
+        const bytesPerElem = Number.isFinite(artifact?.meta?.bytes_per_element)
+          ? Number(artifact.meta.bytes_per_element)
+          : 8;
+        const flopsPerElem = Number.isFinite(artifact?.meta?.flops_per_element)
+          ? Number(artifact.meta.flops_per_element)
+          : 0;
+        const elements = n * iterations;
+        return {
+          elements,
+          bytes: elements * bytesPerElem,
+          flops: elements * flopsPerElem,
+          elementLabel: "elements",
+        };
+      }
+
+      function verifyOutForDemo(demoType, artifact, buffers, n) {
+        if (demoType === "vec_scale") {
+          let maxAbsErr = 0;
+          for (let i = 0; i < buffers.out.length; ++i) {
+            const want = 2.0 * buffers.a[i];
+            const got = buffers.out[i];
+            const e = Math.abs(got - want);
+            if (e > maxAbsErr) maxAbsErr = e;
+          }
+          return { maxAbsErr, note: `verified ${buffers.out.length} elements` };
+        }
+
+        if (demoType === "fma_storm" || demoType === "fma_storm_xl") {
+          const innerSteps = Number.isInteger(artifact?.meta?.inner_steps)
+            ? artifact.meta.inner_steps
+            : 256;
+          const count = Math.min(n, 1024);
+          let maxAbsErr = 0;
+          for (let i = 0; i < count; ++i) {
+            const x = buffers.a[i];
+            let want = 0.0;
+            for (let k = 0; k < innerSteps; ++k) {
+              const k1 = k;
+              const k2 = 2 * k;
+              const k3 = 3 * k;
+              want += (x + k1) * (x - k1) + (x + k2) * (x - k2) + (x + k3) * (x - k3);
+            }
+            const got = buffers.out[i];
+            const e = Math.abs(got - want);
+            if (e > maxAbsErr) maxAbsErr = e;
+          }
+          return { maxAbsErr, note: `verified first ${count} elements` };
+        }
+
+        if (demoType === "trig_storm") {
+          const innerSteps = Number.isInteger(artifact?.meta?.inner_steps)
+            ? artifact.meta.inner_steps
+            : 64;
+          const count = Math.min(n, 64);
+          let maxAbsErr = 0;
+          for (let i = 0; i < count; ++i) {
+            const x = buffers.a[i];
+            const ax = Math.abs(x);
+            let want = 0.0;
+            for (let k = 0; k < innerSteps; ++k) {
+              want +=
+                Math.sin(x + k) * Math.cos(x - 2 * k) +
+                Math.log(ax + 1 + k) +
+                Math.exp(-ax - k);
+            }
+            const got = buffers.out[i];
+            const e = Math.abs(got - want);
+            if (e > maxAbsErr) maxAbsErr = e;
+          }
+          return { maxAbsErr, note: `verified first ${count} elements` };
+        }
+
+        if (demoType === "matmul" || demoType === "matmul_tiled") {
+          const nn = n * n;
+          const samples = [
+            [0, 0],
+            [0, Math.floor(n / 2)],
+            [Math.floor(n / 2), 0],
+            [Math.floor(n / 2), Math.floor(n / 2)],
+            [n - 1, n - 1],
+          ].filter(([i, j]) => i >= 0 && j >= 0 && i < n && j < n);
+
+          let maxAbsErr = 0;
+          for (const [i, j] of samples) {
+            let want = 0.0;
+            const ioff = i * n;
+            for (let k = 0; k < n; ++k) {
+              want += buffers.a[ioff + k] * buffers.b[k * n + j];
+            }
+            const got = buffers.out[ioff + j];
+            const e = Math.abs(got - want);
+            if (e > maxAbsErr) maxAbsErr = e;
+          }
+
+          return { maxAbsErr, note: `verified ${samples.length} sampled entries` };
+        }
+
+        return { maxAbsErr: NaN, note: "no verification rule for this demo" };
+      }
+
+      function refreshDispatchSummaryFromUI() {
+        if (!currentDemo || !currentDemo.artifact) return;
+        const demoType = currentDemoType();
+        if (!demoType) return;
+        try {
+          const n0 = clampInt(nInput.value, 0, maxNForDemoType(demoType), "n");
+          renderDispatchSummary(currentDemo.artifact, { n: n0 });
+        } catch {
+          // Ignore while editing.
+        }
+      }
+
+      nInput.addEventListener("input", refreshDispatchSummaryFromUI);
+
+      runBtn.onclick = async () => {
+        runBtn.disabled = true;
+        verifyV.textContent = "-";
+        setStatus("", "Running benchmark...");
+        try {
+          if (!currentDemo || !currentDemo.artifact) throw new Error("No demo selected (artifacts not loaded?)");
+          if (!webgpu || !webgpu.device) throw new Error("WebGPU not initialized");
+
+          const artifact = currentDemo.artifact;
+          const demoType = currentDemoType();
+          if (!demoType) throw new Error("internal error: could not determine demo type");
+
+          const nMax = maxNForDemoType(demoType);
+          const n = clampInt(nInput.value, 0, nMax, "n");
+          const iters = clampInt(itersInput.value, 1, 1 << 20, "GPU iterations");
+          const warmup = clampInt(warmupInput.value, 0, 1 << 20, "warmup iterations");
+          const trials = clampInt(trialsInput.value, 1, 50, "trials");
+          const verify = Boolean(verifyCb.checked);
+
+          const params = { n };
+
+          // Allocate input/output buffers for this demo.
+          const buffers = allocateBuffersForDemo(demoType, artifact, n);
+
+          // Compile per demo. (Pipelines are reusable across runs for the same WGSL source.)
+          let compiled = compiledByDemoId.get(currentDemo.id) || null;
+          if (!compiled) {
+            compiled = await compileLoopyWebGPU(webgpu.device, artifact);
+            compiledByDemoId.set(currentDemo.id, compiled);
+          }
+          const compileMs = compiled.timings.compileMs;
+
+          // Show dispatch summary for the current n.
+          const { evaluated, invocationsTotal } = renderDispatchSummary(artifact, params);
+
+          // Create buffers + bind group (includes upload via queue.writeBuffer).
+          const tSetup0 = performance.now();
+          const resources = createLoopyBindGroup(webgpu.device, compiled, { params, buffers });
+          const tSetup1 = performance.now();
+          const uploadMs = tSetup1 - tSetup0;
+
+          // Warmup GPU (for more stable timings).
+          let warmupMs = 0;
+          if (warmup) {
+            const w = await dispatchLoopyWebGPU(webgpu.device, compiled, resources, { params, iterations: warmup });
+            warmupMs = w.submitToDoneMs;
+          }
+
+          // Measure GPU dispatch (submit -> onSubmittedWorkDone()).
+          const gpuTimes = [];
+          for (let t = 0; t < trials; ++t) {
+            const r = await dispatchLoopyWebGPU(webgpu.device, compiled, resources, { params, iterations: iters });
+            gpuTimes.push(r.submitToDoneMs);
+          }
+
+          // Warmup + measure CPU.
+          cpuBaselineForDemo(demoType, artifact, buffers, n, 1);
+          const cpuTimes = [];
+          const cpuTrials = Number.isInteger(artifact?.meta?.suggested_cpu_trials)
+            ? Math.min(trials, artifact.meta.suggested_cpu_trials)
+            : trials;
+          let cpuExtraMs = 0;
+          for (let t = 0; t < cpuTrials; ++t) {
+            const r = cpuBaselineForDemo(demoType, artifact, buffers, n, iters);
+            cpuTimes.push(r.ms);
+            if (typeof r.transposeMs === "number") cpuExtraMs += r.transposeMs;
+          }
+
+          const gpuMed = median(gpuTimes);
+          const cpuMed = median(cpuTimes);
+          const speedup = cpuMed / gpuMed;
+
+          const work = workModelForDemo(demoType, artifact, n, iters);
+
+          workV.textContent = `${work.elements.toLocaleString()} ${work.elementLabel}  |  ${Math.round(work.bytes).toLocaleString()} bytes  |  ${Math.round(work.flops).toLocaleString()} flops`;
+          uploadV.textContent = `${fmtMs(uploadMs)}  |  ${resources.bytesUploaded.toLocaleString()} bytes uploaded`;
+
+          gpuMedianV.textContent = `${fmtMs(gpuMed)}  (min=${fmtMs(Math.min(...gpuTimes))}, jitter=${fmtPct(stddev(gpuTimes) / mean(gpuTimes))})`;
+          cpuMedianV.textContent = `${fmtMs(cpuMed)}  (min=${fmtMs(Math.min(...cpuTimes))}, jitter=${fmtPct(stddev(cpuTimes) / mean(cpuTimes))}, trials=${cpuTrials})`;
+          speedupV.textContent = Number.isFinite(speedup) ? `${speedup.toFixed(2)}x` : "-";
+          gpuThroughputV.textContent = `${fmtRateElementsPerSec(work.elements, gpuMed)}  |  ${fmtRateGBps(work.bytes, gpuMed)}  |  ${fmtRateGFLOPs(work.flops, gpuMed)}`;
+          cpuThroughputV.textContent = `${fmtRateElementsPerSec(work.elements, cpuMed)}  |  ${fmtRateGBps(work.bytes, cpuMed)}  |  ${fmtRateGFLOPs(work.flops, cpuMed)}`;
+
+          // Bars: show a rough breakdown. (Not a strict accounting: upload and compile are CPU-side.)
+          renderBars([
+            { label: "GPU compile", ms: compileMs },
+            { label: "GPU upload", ms: uploadMs },
+            { label: "GPU warmup", ms: warmupMs },
+            { label: "GPU dispatch", ms: gpuMed },
+            { label: "CPU baseline (single-thread)", ms: cpuMed },
+            { label: "CPU extras", ms: cpuExtraMs / Math.max(1, cpuTrials) },
+          ]);
+
+          // Optional readback + verification.
+          if (verify) {
+            setStatus("warn", "Reading back + verifying...");
+            const rb = await readbackLoopyBuffers(webgpu.device, compiled, resources, {
+              buffers,
+              names: ["out"],
+            });
+
+            const v = verifyOutForDemo(demoType, artifact, buffers, n);
+
+            verifyV.textContent = `max_abs_err=${Number.isFinite(v.maxAbsErr) ? v.maxAbsErr.toExponential(3) : "nan"} | ${v.note} | readback copy=${fmtMs(rb.timings.copySubmitToDoneMs)} | map+copy=${fmtMs(rb.timings.mapAndCopyMs)}`;
+
+            const out = buffers.out;
+            const head = Array.from(out.slice(0, 24));
+            outPre.textContent = JSON.stringify(
+              {
+                demo: demoType,
+                n,
+                gpuIters: iters,
+                dispatches: evaluated,
+                invocationsTotal,
+                work,
+                artifactSource: artifactsSource,
+                head,
+              },
+              null,
+              2,
+            );
+
+            drawPlot(head);
+            setStatus("ok", "OK (verified)");
+          } else {
+            outPre.textContent = "Run with verification enabled to read back results.";
+            drawPlot(null);
+            setStatus("ok", "OK");
+          }
+        } catch (err) {
+          console.error(err);
+          setStatus("bad", String(err && err.message ? err.message : err));
+        } finally {
+          runBtn.disabled = false;
+        }
+      };
+    </script>
+  </body>
+</html>

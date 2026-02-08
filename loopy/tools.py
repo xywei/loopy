@@ -936,8 +936,12 @@ def memoize_on_disk(func, key_builder_t=LoopyKeyBuilder):
     def wrapper(*args, **kwargs):
         from loopy import CACHING_ENABLED
 
+        # Always pop the kwarg, even if caching is disabled, to avoid passing an
+        # unexpected keyword argument through to *func*.
+        no_memoize = kwargs.pop("_no_memoize_on_disk", False)
+
         if (not CACHING_ENABLED
-                or kwargs.pop("_no_memoize_on_disk", False)):
+                or no_memoize):
             return func(*args, **kwargs)
 
         cache_key = (func.__qualname__, func.__name__, args, kwargs)

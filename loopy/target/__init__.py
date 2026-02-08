@@ -249,7 +249,7 @@ class ASTBuilderBase(Generic[ASTType], ABC):
         return []
 
     def get_temporary_decls(self, codegen_state: CodeGenerationState,
-            schedule_index: int) -> ASTType:
+            schedule_index: int) -> Sequence[ASTType]:
         raise NotImplementedError
 
     def get_kernel_call(self, codegen_state: CodeGenerationState,
@@ -367,7 +367,7 @@ class DummyHostASTBuilder(ASTBuilderBase[None]):
     def get_expression_to_code_mapper(self, codegen_state):
         return _DummyExpressionToCodeMapper()
 
-    def get_kernel_call(self, codegen_state, name, gsize, lsize):
+    def get_kernel_call(self, codegen_state, subkernel_name, gsize, lsize):
         return None
 
     @property
